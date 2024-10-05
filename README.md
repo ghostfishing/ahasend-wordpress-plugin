@@ -14,6 +14,4 @@ Grab your credentials from Aha Send and add them to the plugin settings page.
 
 That's it! You can now send emails with Aha Send.
 
-## Logging
-
 This plugin will store a log of all emails sent in the database, this is cleared every 30 days.
