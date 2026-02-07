@@ -74,6 +74,10 @@ class AhasendEmailSender
 
   public function override_wp_mail($null, $atts)
   {
+    if (empty($this->ahasend_api_key) || empty($this->ahasend_account_id)) {
+      return null;
+    }
+
     $to = $atts["to"];
     $subject = $atts["subject"];
     $message = $atts["message"];
@@ -194,24 +198,24 @@ class AhasendEmailSender
   public function add_admin_menu()
   {
     add_menu_page(
-      "Ahasend Email Log",
-      "Ahasend Log",
+      __("Ahasend Email Log", "ahasend-email-sender"),
+      __("Ahasend Log", "ahasend-email-sender"),
       "manage_options",
       "ahasend-log",
       [$this, "display_log"]
     );
     add_submenu_page(
       "ahasend-log",
-      "Ahasend Settings",
-      "Settings",
+      __("Ahasend Settings", "ahasend-email-sender"),
+      __("Settings", "ahasend-email-sender"),
       "manage_options",
       "ahasend-settings",
       [$this, "display_settings_page"]
     );
     add_submenu_page(
       "ahasend-log",
-      "Send Test Email",
-      "Send Test Email",
+      __("Send Test Email", "ahasend-email-sender"),
+      __("Send Test Email", "ahasend-email-sender"),
       "manage_options",
       "ahasend-send-test",
       [$this, "display_send_test_page"]
@@ -226,8 +230,8 @@ class AhasendEmailSender
     $results = $wpdb->get_results(
       $wpdb->prepare("SELECT * FROM %i ORDER BY time DESC", $table_name)
     );
-    echo '<div class="wrap"><h2>Ahasend Email Log</h2><table class="wp-list-table widefat fixed striped">';
-    echo "<thead><tr><th>Time</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Message ID</th><th>Response</th></tr></thead><tbody>";
+    echo '<div class="wrap"><h2>' . esc_html__("Ahasend Email Log", "ahasend-email-sender") . '</h2><table class="wp-list-table widefat fixed striped">';
+    echo '<thead><tr><th>' . esc_html__("Time", "ahasend-email-sender") . '</th><th>' . esc_html__("Recipient", "ahasend-email-sender") . '</th><th>' . esc_html__("Subject", "ahasend-email-sender") . '</th><th>' . esc_html__("Status", "ahasend-email-sender") . '</th><th>' . esc_html__("Message ID", "ahasend-email-sender") . '</th><th>' . esc_html__("Response", "ahasend-email-sender") . '</th></tr></thead><tbody>';
     foreach ($results as $row) {
       $message_id = isset($row->message_id) ? $row->message_id : "";
       echo '<tr><td>' . esc_html($row->time) . '</td><td>' . esc_html($row->recipient) . '</td><td>' . esc_html($row->subject) . '</td><td>' . esc_html($row->status) . '</td><td>' . esc_html($message_id) . '</td><td>' . esc_html($row->response) . '</td></tr>';
@@ -239,37 +243,45 @@ class AhasendEmailSender
   {
     if (
       isset($_POST["ahasend_settings_nonce"]) &&
-      wp_verify_nonce(sanitize_text_field(wp_unslash($_POST["ahasend_settings_nonce"])), "ahasend_save_settings")
+      wp_verify_nonce(sanitize_text_field(wp_unslash($_POST["ahasend_settings_nonce"])), "ahasend_save_settings") &&
+      current_user_can("manage_options")
     ) {
       update_option(
         "ahasend_api_key",
-        isset($_POST["ahasend_api_key"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_api_key"])) : ""
+        isset($_POST["ahasend_api_key"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_api_key"])) : "",
+        false
       );
       update_option(
         "ahasend_account_id",
-        isset($_POST["ahasend_account_id"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_account_id"])) : ""
+        isset($_POST["ahasend_account_id"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_account_id"])) : "",
+        false
       );
       update_option(
         "ahasend_from_email",
-        isset($_POST["ahasend_from_email"]) ? sanitize_email(wp_unslash($_POST["ahasend_from_email"])) : ""
+        isset($_POST["ahasend_from_email"]) ? sanitize_email(wp_unslash($_POST["ahasend_from_email"])) : "",
+        false
       );
       update_option(
         "ahasend_from_name",
-        isset($_POST["ahasend_from_name"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_from_name"])) : ""
+        isset($_POST["ahasend_from_name"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_from_name"])) : "",
+        false
       );
       update_option(
         "ahasend_reply_to_email",
-        isset($_POST["ahasend_reply_to_email"]) ? sanitize_email(wp_unslash($_POST["ahasend_reply_to_email"])) : ""
+        isset($_POST["ahasend_reply_to_email"]) ? sanitize_email(wp_unslash($_POST["ahasend_reply_to_email"])) : "",
+        false
       );
       update_option(
         "ahasend_reply_to_name",
-        isset($_POST["ahasend_reply_to_name"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_reply_to_name"])) : ""
+        isset($_POST["ahasend_reply_to_name"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_reply_to_name"])) : "",
+        false
       );
       update_option(
         "ahasend_reply_to_force",
-        isset($_POST["ahasend_reply_to_force"]) ? "1" : ""
+        isset($_POST["ahasend_reply_to_force"]) ? "1" : "",
+        false
       );
-      echo '<div class="updated"><p>Settings saved.</p></div>';
+      echo '<div class="updated"><p>' . esc_html__("Settings saved.", "ahasend-email-sender") . '</p></div>';
     }
 
     $ahasend_api_key = get_option("ahasend_api_key", "");
@@ -279,32 +291,32 @@ class AhasendEmailSender
     $ahasend_reply_to_email = get_option("ahasend_reply_to_email", "");
     $ahasend_reply_to_name = get_option("ahasend_reply_to_name", "");
     $ahasend_reply_to_force = get_option("ahasend_reply_to_force", "");
-    echo '<div class="wrap"><h2>Ahasend Settings</h2><form method="post" action="">';
+    echo '<div class="wrap"><h2>' . esc_html__("Ahasend Settings", "ahasend-email-sender") . '</h2><form method="post" action="">';
     wp_nonce_field("ahasend_save_settings", "ahasend_settings_nonce");
     echo '<table class="form-table">';
-    echo '<tr valign="top"><th scope="row">API Key</th><td><input type="text" name="ahasend_api_key" value="' .
+    echo '<tr valign="top"><th scope="row">' . esc_html__("API Key", "ahasend-email-sender") . '</th><td><input type="password" name="ahasend_api_key" value="' .
       esc_attr($ahasend_api_key) .
       '" class="regular-text"></td></tr>';
-    echo '<tr valign="top"><th scope="row">Account ID</th><td><input type="text" name="ahasend_account_id" value="' .
+    echo '<tr valign="top"><th scope="row">' . esc_html__("Account ID", "ahasend-email-sender") . '</th><td><input type="text" name="ahasend_account_id" value="' .
       esc_attr($ahasend_account_id) .
       '" class="regular-text"></td></tr>';
-    echo '<tr valign="top"><th scope="row">From Email</th><td><input type="email" name="ahasend_from_email" value="' .
+    echo '<tr valign="top"><th scope="row">' . esc_html__("From Email", "ahasend-email-sender") . '</th><td><input type="email" name="ahasend_from_email" value="' .
       esc_attr($ahasend_from_email) .
       '" class="regular-text"></td></tr>';
-    echo '<tr valign="top"><th scope="row">From Name</th><td><input type="text" name="ahasend_from_name" value="' .
+    echo '<tr valign="top"><th scope="row">' . esc_html__("From Name", "ahasend-email-sender") . '</th><td><input type="text" name="ahasend_from_name" value="' .
       esc_attr($ahasend_from_name) .
       '" class="regular-text"></td></tr>';
-    echo '<tr valign="top"><th scope="row">Reply-To Email</th><td><input type="email" name="ahasend_reply_to_email" value="' .
+    echo '<tr valign="top"><th scope="row">' . esc_html__("Reply-To Email", "ahasend-email-sender") . '</th><td><input type="email" name="ahasend_reply_to_email" value="' .
       esc_attr($ahasend_reply_to_email) .
-      '" class="regular-text"><p class="description">Default Reply-To address. Leave blank to disable.</p></td></tr>';
-    echo '<tr valign="top"><th scope="row">Reply-To Name</th><td><input type="text" name="ahasend_reply_to_name" value="' .
+      '" class="regular-text"><p class="description">' . esc_html__("Default Reply-To address. Leave blank to disable.", "ahasend-email-sender") . '</p></td></tr>';
+    echo '<tr valign="top"><th scope="row">' . esc_html__("Reply-To Name", "ahasend-email-sender") . '</th><td><input type="text" name="ahasend_reply_to_name" value="' .
       esc_attr($ahasend_reply_to_name) .
       '" class="regular-text"></td></tr>';
-    echo '<tr valign="top"><th scope="row">Force Reply-To</th><td><label><input type="checkbox" name="ahasend_reply_to_force" value="1"' .
+    echo '<tr valign="top"><th scope="row">' . esc_html__("Force Reply-To", "ahasend-email-sender") . '</th><td><label><input type="checkbox" name="ahasend_reply_to_force" value="1"' .
       checked($ahasend_reply_to_force, "1", false) .
-      '> Always use the Reply-To above, ignoring any Reply-To headers set by WordPress or plugins.</label></td></tr>';
+      '> ' . esc_html__("Always use the Reply-To above, ignoring any Reply-To headers set by WordPress or plugins.", "ahasend-email-sender") . '</label></td></tr>';
     echo "</table>";
-    echo '<p class="submit"><input type="submit" class="button-primary" value="Save Changes"></p></form></div>';
+    echo '<p class="submit"><input type="submit" class="button-primary" value="' . esc_attr__("Save Changes", "ahasend-email-sender") . '"></p></form></div>';
   }
 
   public function display_send_test_page()
@@ -312,11 +324,12 @@ class AhasendEmailSender
     if (
       isset($_POST["ahasend_test_nonce"]) &&
       wp_verify_nonce(sanitize_text_field(wp_unslash($_POST["ahasend_test_nonce"])), "ahasend_send_test") &&
+      current_user_can("manage_options") &&
       isset($_POST["ahasend_test_email"])
     ) {
       $to = sanitize_email(wp_unslash($_POST["ahasend_test_email"]));
-      $subject = "Test Email from Ahasend Plugin";
-      $body = "This is a test email sent from the Ahasend Email Sender plugin.";
+      $subject = __("Test Email from Ahasend Plugin", "ahasend-email-sender");
+      $body = __("This is a test email sent from the Ahasend Email Sender plugin.", "ahasend-email-sender");
 
       $headers = [
         "From: " .
@@ -329,19 +342,20 @@ class AhasendEmailSender
       $sent = wp_mail($to, $subject, $body, $headers);
 
       if ($sent) {
-        echo '<div class="updated"><p>Test email sent to ' .
-          esc_html($to) .
-          ".</p></div>";
+        echo '<div class="updated"><p>' .
+          /* translators: %s: recipient email address */
+          sprintf(esc_html__("Test email sent to %s.", "ahasend-email-sender"), esc_html($to)) .
+          "</p></div>";
       } else {
-        echo '<div class="error"><p>Failed to send test email.</p></div>';
+        echo '<div class="error"><p>' . esc_html__("Failed to send test email.", "ahasend-email-sender") . '</p></div>';
       }
     }
-    echo '<div class="wrap"><h2>Send Test Email</h2><form method="post" action="">';
+    echo '<div class="wrap"><h2>' . esc_html__("Send Test Email", "ahasend-email-sender") . '</h2><form method="post" action="">';
     wp_nonce_field("ahasend_send_test", "ahasend_test_nonce");
     echo '<table class="form-table">';
-    echo '<tr valign="top"><th scope="row">Test Email Address</th><td><input type="email" name="ahasend_test_email" value="" class="regular-text"></td></tr>';
+    echo '<tr valign="top"><th scope="row">' . esc_html__("Test Email Address", "ahasend-email-sender") . '</th><td><input type="email" name="ahasend_test_email" value="" class="regular-text"></td></tr>';
     echo "</table>";
-    echo '<p class="submit"><input type="submit" class="button-primary" value="Send Test Email"></p></form></div>';
+    echo '<p class="submit"><input type="submit" class="button-primary" value="' . esc_attr__("Send Test Email", "ahasend-email-sender") . '"></p></form></div>';
   }
 
   public function clean_old_logs()
