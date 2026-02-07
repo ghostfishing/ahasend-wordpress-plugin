@@ -3,7 +3,10 @@
     "allow": [
       "WebFetch(domain:ahasend.com)",
       "WebFetch(domain:developer.wordpress.org)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(unzip:*)",
+      "Bash(git -C /Users/chris/src/github.com/ghostfishing/ahasend-wordpress-plugin config --list)",
+      "Bash(git -C /Users/chris/src/github.com/ghostfishing/ahasend-wordpress-plugin log --oneline)"
     ]
   }
 }
