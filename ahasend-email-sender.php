@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Ahasend Email Sender
  * Description: Sends WordPress emails using the Ahasend API and logs the sent emails and their status. Logs are cleared monthly.
- * Version: 1.0
+ * Version: 2.0
  * Author: Chris Hawes <chris.hawes@ghostfishing.co.uk>
  */
 
@@ -12,14 +12,22 @@ defined("ABSPATH") or die("Denied.");
 class AhasendEmailSender
 {
   private $ahasend_api_key;
+  private $ahasend_account_id;
   private $ahasend_from_email;
   private $ahasend_from_name;
+  private $ahasend_reply_to_email;
+  private $ahasend_reply_to_name;
+  private $ahasend_reply_to_force;
 
   public function __construct()
   {
     $this->ahasend_api_key = get_option("ahasend_api_key");
+    $this->ahasend_account_id = get_option("ahasend_account_id");
     $this->ahasend_from_email = get_option("ahasend_from_email");
     $this->ahasend_from_name = get_option("ahasend_from_name");
+    $this->ahasend_reply_to_email = get_option("ahasend_reply_to_email");
+    $this->ahasend_reply_to_name = get_option("ahasend_reply_to_name");
+    $this->ahasend_reply_to_force = get_option("ahasend_reply_to_force");
     add_filter("pre_wp_mail", [$this, "override_wp_mail"], 10, 2);
     add_action("admin_menu", [$this, "add_admin_menu"]);
     add_action("ahasend_log_cleanup", [$this, "clean_old_logs"]);
@@ -40,6 +48,7 @@ class AhasendEmailSender
             subject varchar(255) NOT NULL,
             status varchar(20) NOT NULL,
             response text,
+            message_id varchar(255) DEFAULT '' NOT NULL,
             PRIMARY KEY  (id)
         ) $charset_collate;";
 
@@ -61,6 +70,7 @@ class AhasendEmailSender
     $to = $atts["to"];
     $subject = $atts["subject"];
     $message = $atts["message"];
+    $headers = isset($atts["headers"]) ? $atts["headers"] : [];
 
     $recipients = [];
     if (is_array($to)) {
@@ -78,41 +88,88 @@ class AhasendEmailSender
     }
 
     $data = [
-      "recipients" => $recipients,
-      "content" => [
-        "subject" => $subject,
-        "text_body" => $message,
-        "html_body" => nl2br($message),
-      ],
       "from" => [
         "name" => $this->ahasend_from_name,
         "email" => $this->ahasend_from_email,
       ],
+      "recipients" => $recipients,
+      "subject" => $subject,
+      "text_content" => $message,
+      "html_content" => nl2br($message),
     ];
 
-    $response = wp_remote_post("https://api.ahasend.com/v1/email/send", [
+    // Set default reply-to from settings
+    if ($this->ahasend_reply_to_email) {
+      $data["reply_to"] = ["email" => $this->ahasend_reply_to_email];
+      if ($this->ahasend_reply_to_name) {
+        $data["reply_to"]["name"] = $this->ahasend_reply_to_name;
+      }
+    }
+
+    // Parse headers for Reply-To (override default unless force is on)
+    if (!$this->ahasend_reply_to_force) {
+      $header_lines = is_array($headers) ? $headers : explode("\n", $headers);
+      foreach ($header_lines as $header_line) {
+        $header_line = trim($header_line);
+        if (preg_match('/^Reply-To:\s*(.+)$/i', $header_line, $matches)) {
+          $reply_to_value = trim($matches[1]);
+          if (preg_match('/^(.+)<(.+)>$/', $reply_to_value, $parts)) {
+            $data["reply_to"] = [
+              "name" => trim($parts[1]),
+              "email" => trim($parts[2]),
+            ];
+          } else {
+            $data["reply_to"] = [
+              "email" => $reply_to_value,
+            ];
+          }
+          break;
+        }
+      }
+    }
+
+    $url = "https://api.ahasend.com/v2/accounts/{$this->ahasend_account_id}/messages";
+
+    $response = wp_remote_post($url, [
       "headers" => [
-        "X-API-KEY" => $this->ahasend_api_key,
+        "Authorization" => "Bearer " . $this->ahasend_api_key,
         "Content-Type" => "application/json",
+        "Idempotency-Key" => wp_generate_uuid4(),
       ],
       "body" => wp_json_encode($data),
     ]);
 
-    $status = is_wp_error($response) ? "failed" : "success";
-    $response_body = is_wp_error($response)
-      ? $response->get_error_message()
-      : wp_remote_retrieve_body($response);
+    $message_id = "";
+    if (is_wp_error($response)) {
+      $status = "failed";
+      $response_body = $response->get_error_message();
+    } else {
+      $response_body = wp_remote_retrieve_body($response);
+      $status_code = wp_remote_retrieve_response_code($response);
+      if ($status_code >= 200 && $status_code < 300) {
+        $status = "success";
+        $decoded = json_decode($response_body, true);
+        if (isset($decoded["data"]) && is_array($decoded["data"])) {
+          $ids = array_column($decoded["data"], "id");
+          $message_id = implode(",", $ids);
+        }
+      } else {
+        $status = "failed";
+      }
+    }
+
     $this->log_email(
       implode(",", array_column($recipients, "email")),
       $subject,
       $status,
-      $response_body
+      $response_body,
+      $message_id
     );
 
     return true;
   }
 
-  public function log_email($recipient, $subject, $status, $response)
+  public function log_email($recipient, $subject, $status, $response, $message_id = "")
   {
     global $wpdb;
     $table_name = $wpdb->prefix . "ahasend_email_log";
@@ -122,6 +179,7 @@ class AhasendEmailSender
       "subject" => $subject,
       "status" => $status,
       "response" => $response,
+      "message_id" => $message_id,
     ]);
   }
 
@@ -160,9 +218,10 @@ class AhasendEmailSender
       "SELECT * FROM $table_name ORDER BY time DESC"
     );
     echo '<div class="wrap"><h2>Ahasend Email Log</h2><table class="wp-list-table widefat fixed striped">';
-    echo "<thead><tr><th>Time</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Response</th></tr></thead><tbody>";
+    echo "<thead><tr><th>Time</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Message ID</th><th>Response</th></tr></thead><tbody>";
     foreach ($results as $row) {
-      echo "<tr><td>{$row->time}</td><td>{$row->recipient}</td><td>{$row->subject}</td><td>{$row->status}</td><td>{$row->response}</td></tr>";
+      $message_id = isset($row->message_id) ? $row->message_id : "";
+      echo "<tr><td>{$row->time}</td><td>{$row->recipient}</td><td>{$row->subject}</td><td>{$row->status}</td><td>{$message_id}</td><td>{$row->response}</td></tr>";
     }
     echo "</tbody></table></div>";
   }
@@ -171,12 +230,17 @@ class AhasendEmailSender
   {
     if (
       isset($_POST["ahasend_api_key"]) ||
+      isset($_POST["ahasend_account_id"]) ||
       isset($_POST["ahasend_from_email"]) ||
       isset($_POST["ahasend_from_name"])
     ) {
       update_option(
         "ahasend_api_key",
         sanitize_text_field($_POST["ahasend_api_key"])
+      );
+      update_option(
+        "ahasend_account_id",
+        sanitize_text_field($_POST["ahasend_account_id"])
       );
       update_option(
         "ahasend_from_email",
@@ -186,16 +250,35 @@ class AhasendEmailSender
         "ahasend_from_name",
         sanitize_text_field($_POST["ahasend_from_name"])
       );
+      update_option(
+        "ahasend_reply_to_email",
+        sanitize_email($_POST["ahasend_reply_to_email"])
+      );
+      update_option(
+        "ahasend_reply_to_name",
+        sanitize_text_field($_POST["ahasend_reply_to_name"])
+      );
+      update_option(
+        "ahasend_reply_to_force",
+        isset($_POST["ahasend_reply_to_force"]) ? "1" : ""
+      );
       echo '<div class="updated"><p>Settings saved.</p></div>';
     }
 
     $ahasend_api_key = get_option("ahasend_api_key", "");
+    $ahasend_account_id = get_option("ahasend_account_id", "");
     $ahasend_from_email = get_option("ahasend_from_email", "");
     $ahasend_from_name = get_option("ahasend_from_name", "");
+    $ahasend_reply_to_email = get_option("ahasend_reply_to_email", "");
+    $ahasend_reply_to_name = get_option("ahasend_reply_to_name", "");
+    $ahasend_reply_to_force = get_option("ahasend_reply_to_force", "");
     echo '<div class="wrap"><h2>Ahasend Settings</h2><form method="post" action="">';
     echo '<table class="form-table">';
     echo '<tr valign="top"><th scope="row">API Key</th><td><input type="text" name="ahasend_api_key" value="' .
       esc_attr($ahasend_api_key) .
+      '" class="regular-text"></td></tr>';
+    echo '<tr valign="top"><th scope="row">Account ID</th><td><input type="text" name="ahasend_account_id" value="' .
+      esc_attr($ahasend_account_id) .
       '" class="regular-text"></td></tr>';
     echo '<tr valign="top"><th scope="row">From Email</th><td><input type="email" name="ahasend_from_email" value="' .
       esc_attr($ahasend_from_email) .
@@ -203,6 +286,15 @@ class AhasendEmailSender
     echo '<tr valign="top"><th scope="row">From Name</th><td><input type="text" name="ahasend_from_name" value="' .
       esc_attr($ahasend_from_name) .
       '" class="regular-text"></td></tr>';
+    echo '<tr valign="top"><th scope="row">Reply-To Email</th><td><input type="email" name="ahasend_reply_to_email" value="' .
+      esc_attr($ahasend_reply_to_email) .
+      '" class="regular-text"><p class="description">Default Reply-To address. Leave blank to disable.</p></td></tr>';
+    echo '<tr valign="top"><th scope="row">Reply-To Name</th><td><input type="text" name="ahasend_reply_to_name" value="' .
+      esc_attr($ahasend_reply_to_name) .
+      '" class="regular-text"></td></tr>';
+    echo '<tr valign="top"><th scope="row">Force Reply-To</th><td><label><input type="checkbox" name="ahasend_reply_to_force" value="1"' .
+      checked($ahasend_reply_to_force, "1", false) .
+      '> Always use the Reply-To above, ignoring any Reply-To headers set by WordPress or plugins.</label></td></tr>';
     echo "</table>";
     echo '<p class="submit"><input type="submit" class="button-primary" value="Save Changes"></p></form></div>';
   }
@@ -251,7 +343,6 @@ class AhasendEmailSender
 
 new AhasendEmailSender();
 
-// Add monthly recurrence schedule
 add_filter("cron_schedules", function ($schedules) {
   $schedules["monthly"] = [
     "interval" => 2592000, // 30 days in seconds
