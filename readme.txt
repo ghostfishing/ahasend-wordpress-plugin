@@ -22,6 +22,23 @@ Features:
 * Send test emails from the admin panel
 * Automatic monthly log cleanup
 
+== Third-Party Service ==
+
+This plugin sends all WordPress emails through the **Ahasend** transactional email API. When an email is triggered by WordPress, the following data is transmitted to Ahasend's servers at `api.ahasend.com`:
+
+* Recipient email address(es)
+* Email subject line
+* Email message body (text and HTML)
+* Sender name and email address
+* Reply-To name and email address (if configured)
+
+An Ahasend account is required to use this plugin. You can create one at [ahasend.com](https://ahasend.com).
+
+* [Ahasend Terms of Service](https://ahasend.com/terms)
+* [Ahasend Privacy Policy](https://ahasend.com/privacy)
+
+This plugin is not affiliated with or endorsed by Ahasend.
+
 == Installation ==
 
 1. Upload the `ahasend-email-sender` folder to `/wp-content/plugins/`.
