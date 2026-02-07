@@ -1,0 +1,46 @@
+name: Release Plugin
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract plugin version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'Version:\s*\K[0-9.]+' ahasend-email-sender.php)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        run: |
+          if gh release view "v${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build plugin zip
+        if: steps.check.outputs.exists == 'false'
+        run: bash build.sh
+
+      - name: Create release
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            ahasend-email-sender.zip \
+            --title "Ahasend Email Sender ${{ steps.version.outputs.tag }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

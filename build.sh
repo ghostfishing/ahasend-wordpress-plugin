@@ -9,11 +9,15 @@ rm -f "$ZIP_NAME"
 
 zip -r "$ZIP_NAME" . \
   -x ".git/*" \
+  -x ".github/*" \
   -x ".claude/*" \
-  -x "*.DS_Store" \
   -x ".gitignore" \
   -x "build.sh" \
   -x "BUILD.md" \
-  -x "*.zip"
+  -x "*.zip" \
+  -x "*.DS_Store" \
+  -x "__MACOSX/*" \
+  -x "Thumbs.db" \
+  -x "ahasend-email-sender/*"
 
 echo "Created $ZIP_NAME"
