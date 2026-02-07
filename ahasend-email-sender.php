@@ -63,7 +63,7 @@ class AhasendEmailSender
     dbDelta($sql);
 
     if (!wp_next_scheduled("ahasend_log_cleanup")) {
-      wp_schedule_event(time(), "monthly", "ahasend_log_cleanup");
+      wp_schedule_event(time(), "ahasend_monthly", "ahasend_log_cleanup");
     }
   }
 
@@ -358,7 +358,7 @@ class AhasendEmailSender
 new AhasendEmailSender();
 
 add_filter("cron_schedules", function ($schedules) {
-  $schedules["monthly"] = [
+  $schedules["ahasend_monthly"] = [
     "interval" => 2592000, // 30 days in seconds
     "display" => __("Once Monthly", "ahasend-email-sender"),
   ];
