@@ -5,10 +5,11 @@
  * Version: 2.1
  * Author: Chris Hawes
  * Author URI: https://ghostfishing.co.uk
+ * Plugin URI: https://github.com/ghostfishing/ahasend-wordpress-plugin
  * License: GPLv3
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  * Text Domain: ahasend-email-sender
- * Requires at least: 5.0
+ * Requires at least: 6.2
  * Requires PHP: 7.4
  */
 
@@ -242,19 +243,19 @@ class AhasendEmailSender
     ) {
       update_option(
         "ahasend_api_key",
-        sanitize_text_field(wp_unslash($_POST["ahasend_api_key"]))
+        isset($_POST["ahasend_api_key"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_api_key"])) : ""
       );
       update_option(
         "ahasend_account_id",
-        sanitize_text_field(wp_unslash($_POST["ahasend_account_id"]))
+        isset($_POST["ahasend_account_id"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_account_id"])) : ""
       );
       update_option(
         "ahasend_from_email",
-        sanitize_email(wp_unslash($_POST["ahasend_from_email"]))
+        isset($_POST["ahasend_from_email"]) ? sanitize_email(wp_unslash($_POST["ahasend_from_email"])) : ""
       );
       update_option(
         "ahasend_from_name",
-        sanitize_text_field(wp_unslash($_POST["ahasend_from_name"]))
+        isset($_POST["ahasend_from_name"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_from_name"])) : ""
       );
       update_option(
         "ahasend_reply_to_email",

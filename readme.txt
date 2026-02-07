@@ -1,8 +1,8 @@
 === Ahasend Email Sender ===
 Contributors: chrishawes
 Tags: email, smtp, ahasend, transactional, mail
-Requires at least: 5.0
-Tested up to: 6.7
+Requires at least: 6.2
+Tested up to: 6.9
 Stable tag: 2.1
 Requires PHP: 7.4
 License: GPLv3
