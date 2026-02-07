@@ -8,9 +8,9 @@ if (!defined("WP_UNINSTALL_PLUGIN")) {
 global $wpdb;
 
 // Drop the email log table.
-$table_name = $wpdb->prefix . "ahasend_email_log";
+$ahasend_table_name = $wpdb->prefix . "ahasend_email_log";
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-$wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", $table_name));
+$wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", $ahasend_table_name));
 
 // Delete plugin options.
 delete_option("ahasend_api_key");
