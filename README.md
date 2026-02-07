@@ -1,6 +1,8 @@
-# WordPress Plugin for Sending Emails with AhaSend
+# Ahasend Email Sender
 
-A WordPress plugin that overrides `wp_mail()` to send all outgoing email through the AhaSend v2 API, with logging and status tracking.
+A WordPress plugin that overrides `wp_mail()` to send all outgoing email through the Ahasend v2 API, with logging and status tracking.
+
+For WordPress Plugin Directory details, see [readme.txt](readme.txt).
 
 ## Installation
 

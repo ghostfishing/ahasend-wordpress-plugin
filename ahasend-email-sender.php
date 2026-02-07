@@ -2,8 +2,14 @@
 /**
  * Plugin Name: Ahasend Email Sender
  * Description: Sends WordPress emails using the Ahasend API and logs the sent emails and their status. Logs are cleared monthly.
- * Version: 2.0
- * Author: Chris Hawes <chris.hawes@ghostfishing.co.uk>
+ * Version: 2.1
+ * Author: Chris Hawes
+ * Author URI: https://ghostfishing.co.uk
+ * License: GPLv3
+ * License URI: https://www.gnu.org/licenses/gpl-3.0.html
+ * Text Domain: ahasend-email-sender
+ * Requires at least: 5.0
+ * Requires PHP: 7.4
  */
 
 // Prevent direct access to the script
@@ -173,6 +179,7 @@ class AhasendEmailSender
   {
     global $wpdb;
     $table_name = $wpdb->prefix . "ahasend_email_log";
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
     $wpdb->insert($table_name, [
       "time" => current_time("mysql"),
       "recipient" => $recipient,
@@ -214,14 +221,15 @@ class AhasendEmailSender
   {
     global $wpdb;
     $table_name = $wpdb->prefix . "ahasend_email_log";
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $results = $wpdb->get_results(
-      "SELECT * FROM $table_name ORDER BY time DESC"
+      $wpdb->prepare("SELECT * FROM %i ORDER BY time DESC", $table_name)
     );
     echo '<div class="wrap"><h2>Ahasend Email Log</h2><table class="wp-list-table widefat fixed striped">';
     echo "<thead><tr><th>Time</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Message ID</th><th>Response</th></tr></thead><tbody>";
     foreach ($results as $row) {
       $message_id = isset($row->message_id) ? $row->message_id : "";
-      echo "<tr><td>{$row->time}</td><td>{$row->recipient}</td><td>{$row->subject}</td><td>{$row->status}</td><td>{$message_id}</td><td>{$row->response}</td></tr>";
+      echo '<tr><td>' . esc_html($row->time) . '</td><td>' . esc_html($row->recipient) . '</td><td>' . esc_html($row->subject) . '</td><td>' . esc_html($row->status) . '</td><td>' . esc_html($message_id) . '</td><td>' . esc_html($row->response) . '</td></tr>';
     }
     echo "</tbody></table></div>";
   }
@@ -229,34 +237,32 @@ class AhasendEmailSender
   public function display_settings_page()
   {
     if (
-      isset($_POST["ahasend_api_key"]) ||
-      isset($_POST["ahasend_account_id"]) ||
-      isset($_POST["ahasend_from_email"]) ||
-      isset($_POST["ahasend_from_name"])
+      isset($_POST["ahasend_settings_nonce"]) &&
+      wp_verify_nonce(sanitize_text_field(wp_unslash($_POST["ahasend_settings_nonce"])), "ahasend_save_settings")
     ) {
       update_option(
         "ahasend_api_key",
-        sanitize_text_field($_POST["ahasend_api_key"])
+        sanitize_text_field(wp_unslash($_POST["ahasend_api_key"]))
       );
       update_option(
         "ahasend_account_id",
-        sanitize_text_field($_POST["ahasend_account_id"])
+        sanitize_text_field(wp_unslash($_POST["ahasend_account_id"]))
       );
       update_option(
         "ahasend_from_email",
-        sanitize_email($_POST["ahasend_from_email"])
+        sanitize_email(wp_unslash($_POST["ahasend_from_email"]))
       );
       update_option(
         "ahasend_from_name",
-        sanitize_text_field($_POST["ahasend_from_name"])
+        sanitize_text_field(wp_unslash($_POST["ahasend_from_name"]))
       );
       update_option(
         "ahasend_reply_to_email",
-        sanitize_email($_POST["ahasend_reply_to_email"])
+        isset($_POST["ahasend_reply_to_email"]) ? sanitize_email(wp_unslash($_POST["ahasend_reply_to_email"])) : ""
       );
       update_option(
         "ahasend_reply_to_name",
-        sanitize_text_field($_POST["ahasend_reply_to_name"])
+        isset($_POST["ahasend_reply_to_name"]) ? sanitize_text_field(wp_unslash($_POST["ahasend_reply_to_name"])) : ""
       );
       update_option(
         "ahasend_reply_to_force",
@@ -273,6 +279,7 @@ class AhasendEmailSender
     $ahasend_reply_to_name = get_option("ahasend_reply_to_name", "");
     $ahasend_reply_to_force = get_option("ahasend_reply_to_force", "");
     echo '<div class="wrap"><h2>Ahasend Settings</h2><form method="post" action="">';
+    wp_nonce_field("ahasend_save_settings", "ahasend_settings_nonce");
     echo '<table class="form-table">';
     echo '<tr valign="top"><th scope="row">API Key</th><td><input type="text" name="ahasend_api_key" value="' .
       esc_attr($ahasend_api_key) .
@@ -301,8 +308,12 @@ class AhasendEmailSender
 
   public function display_send_test_page()
   {
-    if (isset($_POST["ahasend_test_email"])) {
-      $to = sanitize_email($_POST["ahasend_test_email"]);
+    if (
+      isset($_POST["ahasend_test_nonce"]) &&
+      wp_verify_nonce(sanitize_text_field(wp_unslash($_POST["ahasend_test_nonce"])), "ahasend_send_test") &&
+      isset($_POST["ahasend_test_email"])
+    ) {
+      $to = sanitize_email(wp_unslash($_POST["ahasend_test_email"]));
       $subject = "Test Email from Ahasend Plugin";
       $body = "This is a test email sent from the Ahasend Email Sender plugin.";
 
@@ -325,6 +336,7 @@ class AhasendEmailSender
       }
     }
     echo '<div class="wrap"><h2>Send Test Email</h2><form method="post" action="">';
+    wp_nonce_field("ahasend_send_test", "ahasend_test_nonce");
     echo '<table class="form-table">';
     echo '<tr valign="top"><th scope="row">Test Email Address</th><td><input type="email" name="ahasend_test_email" value="" class="regular-text"></td></tr>';
     echo "</table>";
@@ -335,8 +347,9 @@ class AhasendEmailSender
   {
     global $wpdb;
     $table_name = $wpdb->prefix . "ahasend_email_log";
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $wpdb->query(
-      "DELETE FROM $table_name WHERE time < NOW() - INTERVAL 1 MONTH"
+      $wpdb->prepare("DELETE FROM %i WHERE time < NOW() - INTERVAL 1 MONTH", $table_name)
     );
   }
 }
@@ -346,7 +359,7 @@ new AhasendEmailSender();
 add_filter("cron_schedules", function ($schedules) {
   $schedules["monthly"] = [
     "interval" => 2592000, // 30 days in seconds
-    "display" => __("Once Monthly"),
+    "display" => __("Once Monthly", "ahasend-email-sender"),
   ];
   return $schedules;
 });
