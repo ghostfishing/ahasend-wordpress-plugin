@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:ahasend.com)"
+      "WebFetch(domain:ahasend.com)",
+      "WebFetch(domain:developer.wordpress.org)",
+      "Bash(git checkout:*)"
     ]
   }
 }
